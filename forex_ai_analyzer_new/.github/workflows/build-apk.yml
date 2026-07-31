@@ -12,25 +12,22 @@ jobs:
 
     steps:
 
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Java
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Install Flutter
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.35.0"
           channel: stable
 
-      - name: Check Flutter
-        run: flutter --version
-
-      - name: Get packages
+      - name: Get dependencies
         run: flutter pub get
 
       - name: Build APK
