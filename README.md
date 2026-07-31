@@ -134,3 +134,4 @@ App hii ni kwa **madhumuni ya kielimu na uchambuzi tu**. Si ushauri wa
 kifedha. Forex trading ina hatari kubwa ya kupoteza fedha — fanya utafiti
 wako mwenyewe na tumia risk management sahihi kabla ya kufanya maamuzi
 yoyote ya kweli ya trading.
+# yussmsai
