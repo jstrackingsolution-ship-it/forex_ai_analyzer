@@ -1,4 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Inahitajika ili app iweze kupiga simu kwenye Twelve Data API (data ya
+         forex/gold/crypto). Bila hii, app haiwezi kufanya HTTP requests hata
+         kama simu ina mtandao (Android inazuia kwa default). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Inaruhusu app kuangalia kama kuna mtandao (wifi/data) kabla ya
+         kujaribu fetch, ili kutoa ujumbe bora wa error badala ya kungoja
+         timeout. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <application
         android:label="forex_ai_analyzer"
         android:name="${applicationName}"

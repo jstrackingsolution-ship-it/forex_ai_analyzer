@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/candle.dart';
@@ -25,12 +26,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Candle> _candles = [];
   AnalysisResult? _analysis;
   bool _loading = false;
+  bool _refreshing = false;
   String? _error;
+  String? _autoError;
+  DateTime? _lastUpdated;
+
+  // ---- Auto-Analyze (kuchambua kiotomatiki kila sekunde N) ----
+  Timer? _autoTimer;
+  bool _autoAnalyze = true;
+  int _autoIntervalSeconds = 1;
+  static const List<int> _autoIntervalOptions = [1, 5, 15, 30, 60];
 
   @override
   void initState() {
     super.initState();
     _loadApiKey();
+  }
+
+  @override
+  void dispose() {
+    _autoTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startAutoAnalyze() {
+    _autoTimer?.cancel();
+    if (!_autoAnalyze) return;
+    _autoTimer = Timer.periodic(Duration(seconds: _autoIntervalSeconds), (_) {
+      // Ruka fetch mpya kama moja bado inaendelea, ili tusijaze foleni ya
+      // requests (hasa muhimu kwenye interval ya sekunde 1)
+      if (!_loading && !_refreshing && mounted) _fetchAndAnalyze();
+    });
+  }
+
+  void _toggleAutoAnalyze(bool value) {
+    setState(() => _autoAnalyze = value);
+    _startAutoAnalyze();
+  }
+
+  void _setAutoInterval(int seconds) {
+    setState(() => _autoIntervalSeconds = seconds);
+    _startAutoAnalyze();
   }
 
   Future<void> _loadApiKey() async {
@@ -51,6 +87,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       });
     }
     _fetchAndAnalyze();
+    _startAutoAnalyze();
   }
 
   Future<void> _saveApiKey(String key) async {
@@ -120,8 +157,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return;
     }
 
+    // Kama tayari kuna data iliyoonyeshwa, tumia "background refresh" (haifutui
+    // chati) badala ya full-screen loading - hii ndiyo hali ya kawaida wakati
+    // wa Auto-Analyze inayoendesha kila sekunde.
+    final isFirstLoad = _candles.isEmpty;
     setState(() {
-      _loading = true;
+      if (isFirstLoad) {
+        _loading = true;
+      } else {
+        _refreshing = true;
+      }
       _error = null;
     });
 
@@ -134,15 +179,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
       final analysis = TechnicalAnalysisService.analyze(candles);
 
+      if (!mounted) return;
       setState(() {
         _candles = candles;
         _analysis = analysis;
         _loading = false;
+        _refreshing = false;
+        _autoError = null;
+        _lastUpdated = DateTime.now();
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        // Ukiwa kwenye Auto-Analyze na tayari una data ya zamani inayoonekana,
+        // usificha chati kwa ujumbe wa error (mfano rate-limit ya kila sekunde) -
+        // onyesha tu kama "banner" ndogo, isipokuwa hii ni jaribio la kwanza.
+        if (isFirstLoad) {
+          _error = e.toString();
+        } else {
+          _autoError = e.toString();
+        }
         _loading = false;
+        _refreshing = false;
       });
     }
   }
@@ -161,6 +219,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text('Forex AI Analyzer'),
         actions: [
+          if (_refreshing)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: Center(
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.vpn_key_outlined),
             tooltip: 'Badilisha API Key',
@@ -179,9 +248,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             _buildSelectors(),
+            const SizedBox(height: 12),
+            _buildAutoAnalyzeControls(),
             if (_usingDemoKey) ...[
               const SizedBox(height: 12),
               _buildDemoKeyBanner(),
+            ],
+            if (_autoError != null) ...[
+              const SizedBox(height: 12),
+              _buildAutoErrorBanner(),
             ],
             const SizedBox(height: 16),
             if (_loading) const Padding(
@@ -244,7 +319,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ..._analysis!.indicators.map((i) => IndicatorSignalTile(indicator: i)),
               const SizedBox(height: 20),
               Text(
-                'Ilichambuliwa: ${_analysis!.analyzedAt.toString().substring(0, 19)}',
+                'Ilichambuliwa: ${(_lastUpdated ?? _analysis!.analyzedAt).toString().substring(0, 19)}'
+                '${_autoAnalyze ? ' · Auto-Analyze: kila ${_autoIntervalSeconds}s ⏱️' : ''}',
                 style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
               ),
               const SizedBox(height: 12),
@@ -326,6 +402,74 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Text(_error ?? '', style: const TextStyle(fontSize: 13)),
           const SizedBox(height: 12),
           ElevatedButton(onPressed: _fetchAndAnalyze, child: const Text('Jaribu Tena')),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAutoAnalyzeControls() {
+    final isFast = _autoIntervalSeconds <= 5;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.grey.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.autorenew, size: 18, color: _autoAnalyze ? Colors.lightBlueAccent : Colors.grey),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('Auto-Analyze', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+              ),
+              DropdownButton<int>(
+                value: _autoIntervalSeconds,
+                underline: const SizedBox(),
+                items: _autoIntervalOptions
+                    .map((s) => DropdownMenuItem(value: s, child: Text('kila ${s}s')))
+                    .toList(),
+                onChanged: _autoAnalyze ? (v) { if (v != null) _setAutoInterval(v); } : null,
+              ),
+              Switch(value: _autoAnalyze, onChanged: _toggleAutoAnalyze),
+            ],
+          ),
+          if (_autoAnalyze && isFast)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                '⚠️ Interval ndogo (≤5s) inaweza kufikia rate-limit ya Twelve Data haraka '
+                '(hasa kwenye demo key au Free plan - 8 requests/dakika). Ukipata error za '
+                'mara kwa mara, ongeza interval hadi 15s au 30s+.',
+                style: TextStyle(fontSize: 10.5, color: Colors.amber.shade200),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAutoErrorBanner() {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.orange.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.warning_amber_outlined, color: Colors.orange, size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Auto-refresh ya mwisho imeshindwa (data ya zamani bado inaonyeshwa): $_autoError',
+              style: TextStyle(fontSize: 10.5, color: Colors.orange.shade100),
+            ),
+          ),
         ],
       ),
     );

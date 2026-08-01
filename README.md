@@ -17,12 +17,20 @@ tu (view-only) — haifanyi trade yoyote moja kwa moja.
 - "AI Signal" — inachanganya viashiria vyote (RSI, MACD, MA, SMC) kutoa signal
   moja ya jumla (STRONG BUY / BUY / NEUTRAL / SELL / STRONG SELL) pamoja na
   % ya uhakika
+- **Auto-Analyze** — inachambua upya kiotomatiki kwa interval unayochagua
+  (1s/5s/15s/30s/60s, default 1s), bila kuficha chati wakati wa background
+  refresh; ina toggle ya kuzima/kuwasha na inaonyesha error kwa upole
+  isipofanikiwa (bila kuvunja app)
 - Uchaguzi wa jozi kuu 10 za forex (EUR/USD, GBP/USD, USD/JPY, n.k.), pamoja
   na **XAU/USD (Dhahabu/Gold)** na **BTC/USD (Bitcoin)**
 - Uchaguzi wa timeframe (15min - 1day)
 - API key inahifadhiwa kwenye kifaa (local storage); app inakuja na Twelve
   Data "demo" key kama default ili uweze kujaribu mara moja (angalia mipaka
   yake chini)
+- Ruhusa za Android (`INTERNET`, `ACCESS_NETWORK_STATE`) zimewekwa kwenye
+  `AndroidManifest.xml` ili app iweze kufikia mtandao/data na kuchukua bei
+  moja kwa moja kwenye simu za Android (bila hii, HTTP requests zote
+  zingeshindwa kimya kimya kwenye release build)
 
 ## Muundo wa Mradi
 ```
@@ -80,6 +88,44 @@ flutter run
 Wakati app itaanza, itatumia demo key moja kwa moja na kuonyesha matokeo.
 Unaweza kubadilisha kwenda API key yako mwenyewe wakati wowote kwa kubofya
 kitufe cha 🔑 juu kulia (itahifadhiwa kwenye kifaa chako kwa matumizi yajayo).
+
+## Auto-Analyze (Uchambuzi wa Kiotomatiki)
+
+App inaweza kuchambua upya kiotomatiki bila wewe kubofya refresh, kwa
+kutumia kitufe cha "Auto-Analyze" juu ya dashboard. Default ni **ON, kila
+sekunde 1** kama ulivyoomba, lakini kuna mambo muhimu ya kuzingatia:
+
+> ⚠️ **Muhimu kuhusu rate limits**: Twelve Data Free plan inaruhusu **8
+> requests/dakika** tu (demo key ina mipaka kali zaidi). Interval ya sekunde
+> 1 inamaanisha requests 60/dakika — hii **itafikia rate-limit haraka sana**
+> na utaanza kupata error za "429 Too Many Requests". App inashughulikia hili
+> vizuri (haivunjiki, inaendelea kuonyesha data ya mwisho iliyofanikiwa na
+> banner ndogo ya onyo), lakini kwa matumizi ya kawaida ni bora kubadilisha
+> interval kwenda **15s au 30s+** kwenye dropdown iliyo karibu na switch ya
+> Auto-Analyze. Ukiwa na akaunti ya kulipia (Grow/Pro plan ya Twelve Data
+> yenye credits nyingi zaidi kwa dakika), sekunde 1 inaweza kufanya kazi
+> vizuri zaidi.
+
+Jinsi inavyofanya kazi kiufundi: `Timer.periodic` inaita `fetchCandles` +
+`analyze` kwa interval uliochagua; wakati wa auto-refresh (baada ya data ya
+kwanza kuonekana), chati **haifutiki** — spinner ndogo tu inaonekana juu
+kulia wakati inasasisha, ili usipoteze muktadha wa kile unachokiangalia.
+
+## Ruhusa za Android (Permissions)
+
+`android/app/src/main/AndroidManifest.xml` sasa ina:
+- `android.permission.INTERNET` — bila hii, app haiwezi kufanya HTTP
+  requests kabisa kwenye Android release build (hii ilikuwa sababu kubwa
+  app isingeweza kuchukua data kwenye simu halisi ya Android hapo awali).
+- `android.permission.ACCESS_NETWORK_STATE` — inaruhusu app kuangalia hali
+  ya mtandao.
+
+API key na mipangilio mingine (pair uliyochagua, timeframe) huhifadhiwa
+kwa kutumia `shared_preferences`, ambayo inatumia **internal app storage**
+ya Android/iOS — hii **haihitaji ruhusa yoyote maalum** kwenye Android ya
+kisasa (hakuna haja ya `WRITE_EXTERNAL_STORAGE`, ambayo pia ingezuiwa na
+Play Store kama isiyo na sababu ya msingi). Data hii ni ya kifaa chako tu
+na haitumwi popote isipokuwa kwenye Twelve Data API kuomba bei.
 
 ## Jinsi Signal Inavyohesabiwa
 
